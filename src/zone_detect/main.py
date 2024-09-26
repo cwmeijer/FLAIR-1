@@ -9,8 +9,10 @@ from pathlib import Path
 import argparse 
 from torch.utils.data import DataLoader
 from rasterio.features import geometry_window
+from torchinfo import summary
 from tqdm import tqdm
 
+from src.zone_detect.describe_dataset import describe_dataset, describe_model
 from src.zone_detect.slicing_job import slice_extent, create_polygon_from_bounds
 from src.zone_detect.model import load_model
 from src.zone_detect.dataset import Sliced_Dataset, convert
@@ -149,11 +151,16 @@ def main():
                             bands=channels, 
                             patch_detection_size=img_pixels_detection,
                             norma_dict=norma_task,
-                            )    
-    
+                            )
+
+
+
+    describe_dataset(dataset)
+    describe_model(model)
+
     # prepare output raster
     out_overall_profile = profile.copy()
-    out_overall_profile.update({'dtype':'uint8', 'compress':'LZW', 'driver':'GTiff', 'BIGTIFF':'YES', 'tiled':True, 
+    out_overall_profile.update({'dtype':'uint8', 'compress':'JPEG', 'driver':'GTiff', 'BIGTIFF':'YES', 'tiled':True,
                                 'blockxsize':img_pixels_detection, 'blockysize':img_pixels_detection})
     out_overall_profile['count'] = [1 if output_type == 'argmax' else n_classes][0]
     out = rasterio.open(path_out, 'w+', **out_overall_profile)   
