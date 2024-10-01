@@ -8,7 +8,7 @@ channels: [1, 2, 3, 4, 5]
 
 img_pixels_detection: 512
 margin: 128
-output_type: "argmax"  # options: [class_prob, argmax]
+output_type: "class_prob"  # options: [class_prob, argmax]
 n_classes: 19
 
 

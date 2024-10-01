@@ -1,22 +1,20 @@
 import os
-import logging 
+import logging
 import warnings
 import torch
 import rasterio
 import yaml
 
 from pathlib import Path
-import argparse 
+import argparse
 from torch.utils.data import DataLoader
 from rasterio.features import geometry_window
-from torchinfo import summary
 from tqdm import tqdm
 
-from src.zone_detect.describe_dataset import describe_dataset, describe_model
-from src.zone_detect.slicing_job import slice_extent, create_polygon_from_bounds
-from src.zone_detect.model import load_model
 from src.zone_detect.dataset import Sliced_Dataset, convert
-
+from src.zone_detect.describe_dataset import describe_dataset, describe_model, describe_predictions
+from src.zone_detect.model import load_model
+from src.zone_detect.slicing_job import slice_extent, create_polygon_from_bounds
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -160,7 +158,7 @@ def main():
 
     # prepare output raster
     out_overall_profile = profile.copy()
-    out_overall_profile.update({'dtype':'uint8', 'compress':'JPEG', 'driver':'GTiff', 'BIGTIFF':'YES', 'tiled':True,
+    out_overall_profile.update({'dtype':'uint8', 'compress':'NONE', 'driver':'GTiff', 'BIGTIFF':'YES', 'tiled':True,
                                 'blockxsize':img_pixels_detection, 'blockysize':img_pixels_detection})
     out_overall_profile['count'] = [1 if output_type == 'argmax' else n_classes][0]
     out = rasterio.open(path_out, 'w+', **out_overall_profile)   
@@ -184,22 +182,23 @@ def main():
             logits.to(device)
         predictions = torch.softmax(logits, dim=1)
         predictions = predictions.cpu().numpy()
-        indices = samples["index"].cpu().numpy()    
+        indices = samples["index"].cpu().numpy()
+        describe_predictions(predictions)
 
-        # writing windowed raster to output rastert 
+        # writing windowed raster to output rastert
         for prediction, index in zip(predictions, indices):
             # removing margins
-            prediction = prediction[:,0+margin:img_pixels_detection-margin,0+margin:img_pixels_detection-margin]
-            prediction = convert(prediction, output_type)
-            sliced_patch_bounds = create_polygon_from_bounds(sliced_dataframe.at[index[0], 'left'], sliced_dataframe.at[index[0], 'right'], 
+            cropped_prediction = prediction[:,0+margin:img_pixels_detection-margin,0+margin:img_pixels_detection-margin]
+            converted_prediction = convert(cropped_prediction, output_type)
+            sliced_patch_bounds = create_polygon_from_bounds(sliced_dataframe.at[index[0], 'left'], sliced_dataframe.at[index[0], 'right'],
                                                              sliced_dataframe.at[index[0], 'bottom'], sliced_dataframe.at[index[0], 'top'])
             window = geometry_window(out, [sliced_patch_bounds], pixel_precision=6)
             window = window.round_shape(op='ceil', pixel_precision=4)
             #write
             if output_type == "argmax":
-                out.write(prediction, window=window)
+                out.write(converted_prediction, window=window)
             else:
-                out.write_band([i for i in range(1, n_classes + 1)], prediction, window=window)      
+                out.write_band([i for i in range(1, n_classes + 1)], converted_prediction, window=window)
                 
     out.close()
     dataset.close_raster()
