@@ -1,5 +1,6 @@
 from pprint import pprint
 
+import pandas as pd
 import torch
 from torch.utils.data import Subset, DataLoader
 from torchinfo import summary
@@ -7,6 +8,19 @@ from torchinfo import summary
 
 def describe_model(model):
     summary(model, input_size=(4, 5, 512, 512))  # input_data=np.stack([e['image'].shape for e in dataset])
+
+def describe_predictions(predictions):
+    batch=0
+    print(f'{predictions.shape=}, printing only batch {batch}')
+    for band in range(predictions.shape[0]):
+        data = {
+            'band' : band,
+            'max' : [predictions[batch][band].max()],
+            'min' : [predictions[batch][band].min()],
+            'mean' : [predictions[batch][band].mean()],
+            'std' : [predictions[batch][band].std()],
+                }
+        print(pd.DataFrame(data))
 
 
 def describe_dataset(dataset, batch_size=4, show_batch=True):
